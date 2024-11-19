@@ -1,0 +1,435 @@
+# Task A
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(reshape2)
+library(ggplot2)
+
+# Read the Excel file
+excel_content <- read_excel("e-shop clothing 2008.xlsx")
+
+
+# Split the 1st row to create all column names
+all_columns = strsplit(colnames(excel_content), ";")[[1]]
+
+# Split the data by semicolon (;) delimiter
+df <- excel_content %>%
+  separate(col = colnames(excel_content)[1],
+           into = c(all_columns),
+           sep = ";", fill = 'right')
+# Drop the column "page 2 (clothing model)" and "year" from the dataframe
+df <- df[, !(colnames(df) == "year") ]
+df <- df[, !(colnames(df) == "page 2 (clothing model)") ]
+
+# Rename the "order(sells)" column to "click_stream" and "session ID" to session_ID
+colnames(df)[colnames(df) == "order(sells)"] <- "click_stream"
+colnames(df)[colnames(df) == "session ID"] <- "session_ID"
+
+# Add a new column product_sold and fill data for it 
+df <- df %>%
+  group_by(session_ID) %>%
+  mutate(product_sold = ifelse(click_stream == max(click_stream), 1, 0)) %>%
+  ungroup()
+
+
+head(df)
+View(df)
+```
+
+```{r}
+#conver to numeric
+df <- as.data.frame(lapply(df, as.integer))
+# Calculate the correlation matrix
+cor_matrix <- cor(df)
+
+# Convert the correlation matrix to long format
+cor_long <- reshape2::melt(cor_matrix)
+
+# Plot the correlation matrix using ggplot2
+ggplot(cor_long, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red",
+                      midpoint = 0, limits = c(-1, 1),
+                      guide = guide_colorbar(title = "Correlation")) +
+  labs(title = "Correlation Matrix", x = "", y = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_text(aes(label = round(value, 2)), color = "black", size = 3)
+```
+
+```{r}
+# Display column names
+colnames(df)
+```
+
+# Task B
+
+```{r}
+# Summarize product_sold by month
+monthly_sales <- df %>%
+  group_by(month) %>%
+  summarize(total_sales = sum(product_sold))
+
+# Scatter plot of sales by month
+ggplot(monthly_sales, aes(x = month, y = total_sales)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Total Sales by Month", x = "Month", y = "Total Sales") +
+  theme_minimal()
+```
+
+```{r}
+# Summarize product sold by color
+color_sales <- df %>%
+  group_by(colour) %>%
+  summarize(total_sales = sum(product_sold))
+
+# Bar plot for product sales by color
+ggplot(color_sales, aes(x = reorder(colour, -total_sales), y = total_sales)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Total Sales by Product Color", x = "Color", y = "Total Sales") +
+  theme_minimal() +
+  coord_flip()
+```
+
+```{r}
+# Summarize by price
+price_sales <- df %>%
+  group_by(price) %>%
+  summarize(total_sold = sum(product_sold))
+
+# Bar plot
+ggplot(price_sales, aes(x = price, y = total_sold)) +
+  geom_bar(stat = "identity", fill = "lightgreen") +
+  ggtitle("Product Sales by Price") +
+  xlab("Price") +
+  ylab("Total Products Sold")
+```
+
+```{r}
+# Summarize product_sold by category and month
+category_monthly_sales <- df %>%
+  group_by(month, page.1..main.category.) %>%
+  summarize(total_sold = sum(product_sold))
+
+# Plot
+ggplot(category_monthly_sales, aes(x = month, y = total_sold, color = factor(page.1..main.category.))) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  ggtitle("Product Sales by Category and Month") +
+  xlab("Month") +
+  ylab("Total Products Sold") +
+  scale_color_discrete(name = "Product Category") +
+  theme_minimal()
+```
+
+```{r}
+# Summarize product_sold by location
+location_sales <- df %>%
+  group_by(location) %>%
+  summarize(total_sold = sum(product_sold))
+
+# Plot
+ggplot(location_sales, aes(x = factor(location), y = total_sold)) +
+  geom_bar(stat = "identity", fill = "lightcoral") +
+  ggtitle("Total Sales by Location") +
+  xlab("Location") +
+  ylab("Total Products Sold") +
+  theme_minimal()
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+# Task C
+
+```{r}
+# Create Revenue column
+df <- df %>%
+  mutate(Revenue = price * product_sold)
+```
+
+```{r}
+# Summarize Revenue by month
+monthly_revenue <- df %>%
+  group_by(month) %>%
+  summarize(total_revenue = sum(Revenue))
+
+# Plot
+ggplot(monthly_revenue, aes(x = month, y = total_revenue)) +
+  geom_bar(stat = "identity", fill = "orange") +
+  ggtitle("Total Revenue by Month") +
+  xlab("Month") +
+  ylab("Total Revenue")
+```
+
+```{r}
+# Line plot for revenue trends
+ggplot(monthly_revenue, aes(x = month, y = total_revenue)) +
+  geom_line(color = "purple", size = 1) +
+  geom_point(color = "red", size = 3) +
+  ggtitle("Revenue Trends by Month") +
+  xlab("Month") +
+  ylab("Total Revenue")
+```
+
+```{r}
+# Summarize Revenue by color
+color_revenue <- df %>%
+  group_by(colour) %>%
+  summarize(total_revenue = sum(Revenue))
+
+# Plot
+ggplot(color_revenue, aes(x = factor(colour), y = total_revenue)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  ggtitle("Total Revenue by Color") +
+  xlab("Color") +
+  ylab("Total Revenue")
+```
+
+```{r}
+# Calculate revenue by country
+revenue_by_country <- df %>%
+  filter(product_sold == 1) %>%
+  group_by(country) %>%
+  summarise(total_revenue = sum(as.numeric(price), na.rm = TRUE)) %>%
+  arrange(desc(total_revenue))
+
+# Create a bar plot
+ggplot(revenue_by_country, aes(x = reorder(country, -total_revenue), y = total_revenue)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Revenue by Country",
+       x = "Country",
+       y = "Total Revenue") +
+  scale_y_continuous(labels = scales::comma)
+
+# Display the plot
+print(revenue_by_country)
+```
+
+# Task D
+
+```{r}
+# Read data from an Excel file into a data frame
+dframe <- read_excel('input.xlsx')
+
+# Separate the first column into six new columns based on whitespace
+dframe <- dframe %>%
+  separate(col = colnames(dframe)[1], into = c("id", "id2", "name", "salary", "start_date", "dept"), sep = "\\s+", convert = TRUE)
+
+# Remove the 'id2' column from the data frame
+dframe <- dframe %>%
+  select(-id2)
+
+dframe$salary <- as.numeric(dframe$salary)
+
+# Display the transformed data frame
+View(dframe)
+```
+
+```{r}
+# Display column names
+colnames(dframe)
+```
+
+```{r}
+ggplot(dframe, aes(x = salary)) +
+  geom_density(fill = "blue", alpha = 0.7) +
+  labs(title = "Density of Salaries", x = "Salary", y = "Density") +
+  theme_minimal()
+
+```
+
+```{r}
+ggplot(dframe, aes(x = salary, color = dept, fill = dept)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density of Salaries by Department", x = "Salary", y = "Density") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set3") +
+  scale_fill_brewer(palette = "Set3")  # Optional: for better color palette
+
+
+```
+
+```{r}
+# Mean
+mean_salary <- mean(dframe$salary, na.rm = TRUE)
+
+# Median
+median_salary <- median(dframe$salary, na.rm = TRUE)
+
+# Mode (Mode function is not directly available in base R; you need to define it)
+mode_salary <- as.numeric(names(sort(table(dframe$salary), decreasing = TRUE)[1]))
+
+# Standard Deviation
+sd_salary <- sd(dframe$salary, na.rm = TRUE)
+
+# Variance
+var_salary <- var(dframe$salary, na.rm = TRUE)
+
+# Print results
+mean_salary
+median_salary
+mode_salary
+sd_salary
+var_salary
+
+```
+
+```{r}
+## Convert 'dept' to a factor to ensure it's treated as a categorical variable
+dframe$dept <- as.factor(dframe$dept)
+
+# Plot the relationship between department and salary using a scatter plot
+ggplot(dframe, aes(x = dept, y = salary)) +
+  geom_point(color = "blue", alpha = 0.6, position = position_jitter(width = 0.2)) +  # Scatter plot with jitter
+  labs(title = "Scatter Plot of Salary by Department", x = "Department", y = "Salary") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+
+```
+
+```{r}
+ggplot(dframe, aes(x = salary)) +
+  geom_histogram(binwidth = 5000, fill = "blue", color = "black", alpha = 0.7) +
+  geom_vline(aes(xintercept = mean_salary), color = "red", linetype = "dashed", size = 1) +
+  geom_vline(aes(xintercept = median_salary), color = "green", linetype = "dashed", size = 1) +
+  labs(title = "Distribution of Salaries with Mean and Median", x = "Salary", y = "Frequency") +
+  theme_minimal()
+
+```
+
+```{r}
+# Ensure 'start_date' is in Date format
+dframe$start_date <- as.Date(dframe$start_date)
+
+# Plot the relationship between start_date and salary
+ggplot(dframe, aes(x = start_date, y = salary)) +
+  geom_point(color = "blue", alpha = 0.6) +  # Scatter plot points
+  geom_smooth(method = "lm", color = "red", linetype = "dashed", se = FALSE) +  # Add a linear trend line
+  labs(title = "Relationship Between Start Date and Salary", x = "Start Date", y = "Salary") +
+  theme_minimal()
+
+```
+
+```{r}
+# Calculate mean, median, mode, standard deviation, and variance
+mean_salary <- mean(dframe$salary, na.rm = TRUE)
+median_salary <- median(dframe$salary, na.rm = TRUE)
+mode_salary <- as.numeric(names(sort(table(dframe$salary), decreasing = TRUE)[1]))
+std_dev_salary <- sd(dframe$salary, na.rm = TRUE)
+variance_salary <- var(dframe$salary, na.rm = TRUE)
+
+# Print the calculated values
+cat("Mean Salary:", mean_salary, "\n")
+cat("Median Salary:", median_salary, "\n")
+cat("Mode Salary:", mode_salary, "\n")
+cat("Standard Deviation of Salary:", std_dev_salary, "\n")
+cat("Variance of Salary:", variance_salary, "\n")
+
+# Visualize the statistics on the salary distribution plot
+ggplot(dframe, aes(x = salary)) +
+  geom_histogram(binwidth = 50, fill = "blue", color = "black", alpha = 0.7) +
+  geom_vline(aes(xintercept = mean_salary), color = "red", linetype = "dashed", size = 1.5) +
+  geom_vline(aes(xintercept = median_salary), color = "green", linetype = "dashed", size = 1.5) +
+  geom_vline(aes(xintercept = mode_salary), color = "purple", linetype = "dashed", size = 1.5) +
+  labs(title = "Salary Distribution with Statistics", x = "Salary", y = "Frequency") +
+  theme_minimal() +
+  annotate("text", x = mean_salary, y = Inf, label = paste("Mean:", round(mean_salary, 2)), vjust = 1.5, color = "red") +
+  annotate("text", x = median_salary, y = Inf, label = paste("Median:", round(median_salary, 2)), vjust = 3, color = "green") +
+  annotate("text", x = mode_salary, y = Inf, label = paste("Mode:", round(mode_salary, 2)), vjust = 4.5, color = "purple")
+
+```
+
+# Task E
+
+```{r}
+star_wars_df <- starwars
+#Clean NA
+star_wars_df[star_wars_df == "none"] = NA
+View(star_wars_df)
+```
+
+```{r}
+# Filter by eyes color and height
+star_wars_df %>%
+  filter(eye_color != "black",
+        height >150)
+
+
+```
+
+```{r}
+#Create new column BMI  (BMI = mass/((height/100)) ^2) 
+star_wars_df <- star_wars_df %>%
+  mutate(bmi = mass/((height/100) )^2) %>%
+  mutate(bmi= round(bmi,2)) 
+View(star_wars_df)
+```
+
+```{r}
+# Filter by eyes color and height
+star_wars_df %>%
+  filter(eye_color != "black",
+        height >150)
+
+```
+
+```{r}
+# Remove rows with non-finite values
+star_wars_df <- star_wars_df[complete.cases(star_wars_df$height, star_wars_df$bmi), ]
+
+# Convert 'dept' to a factor to ensure it's treated as a categorical variable
+star_wars_df$height <- as.factor(star_wars_df$height)
+star_wars_df$bmi <- as.factor(star_wars_df$bmi)
+
+# Convert height and bmi to numeric
+star_wars_df$height <- as.numeric(star_wars_df$height)
+star_wars_df$bmi <- as.numeric(star_wars_df$bmi)
+
+
+
+#Plot a graph of height against BMI
+ggplot(star_wars_df, aes(x = height, color = bmi, fill = bmi)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Graph of height against BMI", x = "Height", y = "BMI") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set3") +
+  scale_fill_brewer(palette = "Set3")  # Optional: for better color palette
+```
+
+```{r}
+library(viridis)
+library(viridisLite)
+
+# Remove rows with non-finite values
+star_wars_df <- star_wars_df[complete.cases(star_wars_df$height, star_wars_df$bmi), ]
+
+# Convert height and bmi to numeric
+star_wars_df$height <- as.numeric(star_wars_df$height)
+star_wars_df$bmi <- as.factor(star_wars_df$bmi)
+
+# Remove groups with fewer than two data points
+star_wars_df <- star_wars_df %>% 
+  group_by(bmi) %>% 
+  filter(n() >= 2) %>% 
+  ungroup()
+
+# Plot a graph of height against BMI
+ggplot(star_wars_df, aes(x = height, color = bmi, fill = bmi)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Graph of Height against BMI", x = "Height", y = "Density") +
+  theme_minimal() +
+  scale_color_viridis_d() +
+  scale_fill_viridis_d()
+```

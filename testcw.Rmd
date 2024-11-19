@@ -1,0 +1,331 @@
+TASK A
+
+```{r}
+# Load required libraries
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(reshape2)
+library(ggplot2)
+
+# Import data from the Excel file
+data <- read_excel("e-shop clothing 2008.xlsx")
+
+# Extract column names by splitting the first row using semicolons
+column_names <- strsplit(colnames(data)[1], ";")[[1]]
+
+# Use semicolons to split the data into separate columns
+data <- data %>%
+  separate(col = colnames(data)[1],
+           into = column_names,
+           sep = ";", fill = 'right')
+
+# Remove unwanted columns: "year" and "page 2 (clothing model)"
+data <- data %>%
+  select(-year, -`page 2 (clothing model)`)
+
+# Rename columns for clarity
+data <- data %>%
+  rename(click_stream = `order(sells)`, 
+         session_ID = `session ID`)
+
+# Create a new column 'product_sold' indicating if a product was sold
+data <- data %>%
+  group_by(session_ID) %>%
+  mutate(product_sold = ifelse(click_stream == max(click_stream), 1, 0)) %>%
+  ungroup()
+
+# Display the first few rows of the modified dataframe
+head(data)
+View(data)
+
+```
+
+```{r}
+# Convert all columns to numeric
+data_numeric <- as.data.frame(lapply(data, as.integer))
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(data_numeric)
+
+# Convert the correlation matrix to long format
+cor_long_format <- reshape2::melt(correlation_matrix)
+
+# Plot the correlation matrix using ggplot2 with a different color scheme
+ggplot(cor_long_format, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "purple", mid = "gray", high = "green",
+                      midpoint = 0, limits = c(-1, 1),
+                      guide = guide_colorbar(title = "Correlation")) +
+  labs(title = "Correlation Matrix", x = "", y = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_text(aes(label = round(value, 2)), color = "black", size = 3)
+```
+
+```{r}
+# Display column names
+colnames(df)
+```
+
+TASK B
+
+```{r}
+
+# Summarize product_sold by month
+monthly_sales_summary <- data %>%
+  group_by(month) %>%
+  summarize(total_sales = sum(product_sold), .groups = 'drop')
+
+# Bar chart of sales by month
+ggplot(monthly_sales_summary, aes(x = month, y = total_sales)) +
+  geom_bar(stat = "identity", fill = "darkorange") +
+  labs(title = "Total Sales by Month", x = "Month", y = "Total Sales") +
+  theme_minimal()
+
+```
+
+```{r}
+print(colnames(df))
+
+# Verify the first few rows to confirm 'product_sold' exists and contains data
+head(df)
+
+# Summarize total sales by product color
+color_sales_summary <- df %>%
+  group_by(colour) %>%
+  summarize(total_sales = sum(product_sold, na.rm = TRUE), .groups = 'drop')
+
+# Create a bar plot to visualize total sales by product color
+ggplot(color_sales_summary, aes(x = reorder(colour, -total_sales), y = total_sales)) +
+  geom_bar(stat = "identity", fill = "darkgreen") +
+  labs(title = "Total Sales by Product Color", x = "Color", y = "Total Sales") +
+  theme_minimal() +
+  coord_flip()
+
+```
+
+```{r}
+# Summarize product sales by price
+price_sales_summary <- df %>%
+  group_by(price) %>%
+  summarize(total_sold = sum(product_sold, na.rm = TRUE), .groups = 'drop')
+
+# Bar plot for product sales by price with updated colors
+ggplot(price_sales_summary, aes(x = price, y = total_sold)) +
+  geom_bar(stat = "identity", fill = "lightcoral") +
+  labs(title = "Total Products Sold by Price", x = "Price", y = "Number of Products Sold") +
+  theme_minimal()
+```
+
+```{r}
+# Summarize total products sold by category and month
+category_sales_summary <- df %>%
+  group_by(month, page.1..main.category.) %>%
+  summarize(total_sold = sum(product_sold, na.rm = TRUE), .groups = 'drop')
+
+# Plot sales by category and month
+ggplot(category_sales_summary, aes(x = month, y = total_sold, color = factor(page.1..main.category.))) +
+  geom_line(size = 1) +   # Draws lines connecting the points
+  geom_point(size = 3) +  # Adds points to the plot
+  labs(title = "Monthly Product Sales by Category", x = "Month", y = "Total Products Sold") +
+  scale_color_brewer(palette = "Set1", name = "Product Category") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+```{r}
+# Summarize total products sold by location
+sales_by_location <- df %>%
+  group_by(location) %>%
+  summarize(total_sold = sum(product_sold, na.rm = TRUE), .groups = 'drop')
+
+# Plot total sales by location
+ggplot(sales_by_location, aes(x = factor(location), y = total_sold)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "Total Sales by location", x = "location", y = "Total Products Sold") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+TASK C
+
+```{r}
+# Add a new column 'Revenue' calculated as price multiplied by product_sold
+df <- df %>%
+  mutate(Revenue = price * product_sold)
+```
+
+```{r}
+# Calculate total revenue by month
+monthly_revenue_summary <- df %>%
+  group_by(month) %>%
+  summarize(total_revenue = sum(Revenue, na.rm = TRUE), .groups = 'drop')
+
+# Plot the total revenue by month using a bar chart
+ggplot(monthly_revenue_summary, aes(x = month, y = total_revenue)) +
+  geom_bar(stat = "identity", fill = "darkred") +
+  labs(title = "Monthly Revenue Overview", x = "Month", y = "Total Revenue") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+# Line plot for revenue trends by month
+ggplot(monthly_revenue_summary, aes(x = month, y = total_revenue)) +
+  geom_line(color = "green", size = 1.2) +
+  geom_point(color = "tomato", size = 3.5) +
+  labs(title = "Monthly Revenue Trends", x = "Month", y = "Total Revenue") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+# Summarize revenue by color
+color_revenue_summary <- df %>%
+  group_by(colour) %>%
+  summarize(total_revenue = sum(Revenue))
+
+# Plot total revenue by color
+ggplot(color_revenue_summary, aes(x = factor(colour), y = total_revenue)) +
+  geom_bar(stat = "identity", fill = "pink") +
+  ggtitle("Total Revenue by Color") +
+  xlab("Color") +
+  ylab("Total Revenue") +
+  theme_minimal()
+```
+
+```{r}
+# Calculate revenue by country
+country_revenue_summary <- df %>%
+  filter(product_sold == 1) %>%
+  group_by(country) %>%
+  summarize(total_revenue = sum(as.numeric(price), na.rm = TRUE)) %>%
+  arrange(desc(total_revenue))
+
+# Create a bar plot for revenue by country
+ggplot(country_revenue_summary, aes(x = reorder(country, -total_revenue), y = total_revenue)) +
+  geom_bar(stat = "identity", fill = "lightgreen") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Revenue by Country",
+       x = "Country",
+       y = "Total Revenue") +
+  scale_y_continuous(labels = scales::comma)
+
+# Display the plot
+print(country_revenue_summary)
+```
+
+TASK D
+
+```{r}
+# Read data from an Excel file into a data frame
+dframe <- read_excel('input.xlsx')
+
+# Separate the first column into six new columns based on whitespace
+dframe <- dframe %>%
+  separate(col = colnames(dframe)[1], into = c("id", "id2", "name", "salary", "start_date", "dept"), sep = "\\s+", convert = TRUE)
+
+# Remove the 'id2' column from the data frame
+dframe <- dframe %>%
+  select(-id2)
+
+dframe$salary <- as.numeric(dframe$salary)
+
+# Display the transformed data frame
+View(dframe)
+```
+
+```{r}
+# Display column names
+colnames(dframe)
+```
+
+```{r}
+# Plot the density of salaries
+ggplot(dframe, aes(x = salary)) +
+  geom_density(fill = "darkblue", alpha = 0.6) +
+  labs(title = "Salary Distribution Density", x = "Salary", y = "Density") +
+  theme_minimal()
+```
+
+```{r}
+# Plot the density of salaries by department
+ggplot(dframe, aes(x = salary, color = dept, fill = dept)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Salary Density by Department", x = "Salary", y = "Density") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Pastel1") +
+  scale_fill_brewer(palette = "Pastel1")
+```
+
+```{r}
+# Calculate Mean Salary
+mean_salary <- mean(dframe$salary, na.rm = TRUE)
+
+# Calculate Median Salary
+median_salary <- median(dframe$salary, na.rm = TRUE)
+
+# Calculate Mode Salary
+# Note: Mode is not directly available in base R; we need to define a custom function
+mode_salary <- as.numeric(names(sort(table(dframe$salary), decreasing = TRUE)[1]))
+
+# Calculate Standard Deviation of Salary
+sd_salary <- sd(dframe$salary, na.rm = TRUE)
+
+# Calculate Variance of Salary
+var_salary <- var(dframe$salary, na.rm = TRUE)
+
+# Print the results
+cat("Mean Salary:", mean_salary, "\n")
+cat("Median Salary:", median_salary, "\n")
+cat("Mode Salary:", mode_salary, "\n")
+cat("Standard Deviation of Salary:", sd_salary, "\n")
+cat("Variance of Salary:", var_salary, "\n")
+```
+
+```{r}
+# Convert 'dept' to a factor to ensure it's treated as a categorical variable
+dframe$dept <- as.factor(dframe$dept)
+
+# Create a scatter plot showing the relationship between department and salary
+ggplot(dframe, aes(x = dept, y = salary)) +
+  geom_point(color = "red", alpha = 0.6, position = position_jitter(width = 0.3)) +  # Scatter plot with jitter to avoid overlapping points
+  labs(title = "Scatter Plot of Salary by Department", 
+       x = "Department", 
+       y = "Salary") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+
+```
+
+```{r}
+# Plot the distribution of salaries with mean and median lines
+ggplot(dframe, aes(x = salary)) +
+  geom_histogram(binwidth = 5000, fill = "darkgray", color = "black", alpha = 0.7) +  # Histogram with specified binwidth
+  geom_vline(aes(xintercept = mean_salary), color = "red", linetype = "dashed", size = 1) +  # Vertical line for mean
+  geom_vline(aes(xintercept = median_salary), color = "dark green", linetype = "dashed", size = 1) +  # Vertical line for median
+  labs(title = "Distribution of Salaries with Mean and Median", 
+       x = "Salary", 
+       y = "Frequency") +
+  theme_minimal()
+
+```
+
+```{r}
+# Ensure 'start_date' is in Date format
+dframe$start_date <- as.Date(dframe$start_date)
+
+# Plot the relationship between start_date and salary
+ggplot(dframe, aes(x = start_date, y = salary)) +
+  geom_point(color = "blue", alpha = 0.6) +  # Scatter plot points
+  geom_smooth(method = "lm", color = "red", linetype = "dashed", se = FALSE) +  # Linear trend line
+  labs(title = "Relationship Between Start Date and Salary", 
+       x = "Start Date", 
+       y = "Salary") +
+  theme_minimal()
+
+```

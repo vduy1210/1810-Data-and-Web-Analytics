@@ -1,0 +1,25 @@
+```{r}
+# Load necessary libraries
+library(readxl)      # For reading data from Excel files
+library(dplyr)       # For data manipulation
+library(tidyr)       # For tidying data
+library(reshape2)    # For reshaping data
+library(ggplot2)     # For creating plots
+
+# Read data from the Excel file
+data <- read_excel("e-shop_clothing_2008.xlsx")
+
+# Check the column names
+print(colnames(data))
+
+# Create column names by splitting the first column name based on semicolons
+column_names <- strsplit(colnames(data)[1], ";")[[1]]
+print(column_names)
+
+# Separate the data in the first column into multiple columns using semicolon
+df <- data %>%
+  separate(col = colnames(data)[1], into = column_names, sep = ";", fill = 'right')
+
+# Display the first few rows of the dataframe
+head(df)
+```

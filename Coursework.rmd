@@ -1,0 +1,133 @@
+```{r}
+# Load required libraries
+library(readxl)
+library(dplyr)
+library(tidyr)
+
+# Read the Excel file
+excel_content <- read_excel("e-shop clothing 2008.xlsx")
+
+# Split the first row to create all column names
+all_columns <- strsplit(colnames(excel_content), ";")[[1]]
+
+# Split the data by  semicolon (;) delimiter
+df <- excel_content %>%
+  separate(col = colnames(excel_content)[1],
+           into = all_columns,
+           sep = ";", fill = 'right')
+
+# Drop unnecessary columns
+df <- df %>% select(-`page 2 (clothing model)`, -year)
+
+# Rename columns
+colnames(df)[colnames(df) == "order(sells)"] <- "click_stream"
+colnames(df)[colnames(df) == "session ID"] <- "session_ID"
+
+# Add a new column 'product_order'
+df <- df %>%
+  group_by(session_ID) %>%
+  mutate(product_order = ifelse(click_stream == max(click_stream), 1, 0)) %>%
+  ungroup()
+
+# Convert all numeric columns to integers
+df <- df %>%
+  mutate(across(c("click_stream", "model photography", "price", "price 2", "month", "day"), as.numeric)) %>%
+  mutate(across(c("page 1 (main category)", "page", "colour", "location"), ~as.numeric(as.factor(.))))
+
+# Display the updated dataframe
+print(head(df))
+
+```
+
+```{r}
+# Load necessary libraries
+library(reshape2)
+library(ggplot2)
+
+# Select relevant columns for correlation
+correlation_columns <- df %>%
+  select(product_order, click_stream, `model photography`, price, `price 2`, `page 1 (main category)`, page, colour, month, day, location)
+
+# Calculate the correlation matrix
+cor_matrix <- cor(correlation_columns, use = "complete.obs")
+
+# Convert the correlation matrix to long format
+cor_long <- melt(cor_matrix)
+
+# Plot the correlation matrix using ggplot2
+ggplot(cor_long, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", 
+                       midpoint = 0, limits = c(-1, 1), 
+                       guide = guide_colorbar(title = "Correlation")) +
+  labs(title = "Correlation Matrix", x = "", y = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_text(aes(label = round(value, 2)), color = "black", size = 3)
+
+```
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+
+# Convert date columns to date format if needed
+df <- df %>%
+  mutate(month = as.numeric(month), day = as.numeric(day))
+
+# Summarize product_sold by month with .groups = "drop"
+monthly_sales <- df %>%
+  group_by(month) %>%
+  summarize(total_sales = sum(product_order), .groups = "drop")
+
+# Scatter plot of Sales by Month
+ggplot(monthly_sales, aes(x = month, y = total_sales)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Sales by Month",
+       x = "Month",
+       y = "Total Sales") +
+  theme_minimal()
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Summarize average price by month and category
+price_changes <- df %>%
+  group_by(month, `page 1 (main category)`) %>%
+  summarize(avg_price = mean(price, na.rm = TRUE), .groups = "drop")
+
+# Create a line plot of average prices by category and month
+ggplot(price_changes, aes(x = factor(month), y = avg_price, color = factor(`page 1 (main category)`), group = `page 1 (main category)`)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Price Changes Over Time by Category",
+       x = "Month",
+       y = "Average Price",
+       color = "Product Category") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+# Create a new column "Revenue"
+df <- df %>%
+  mutate(Revenue = price * product_order)
+
+# Summarize Revenue by month
+monthly_revenue <- df %>%
+  group_by(month) %>%
+  summarize(total_revenue = sum(Revenue))
+
+# Visualize sum of Revenue by month
+ggplot(monthly_revenue, aes(x = month, y = total_revenue)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Total Revenue by Month",
+       x = "Month",
+       y = "Total Revenue") +
+  theme_minimal()
+
+```
